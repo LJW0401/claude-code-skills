@@ -21,6 +21,23 @@
 
 脚本会自动扫描仓库中包含 `SKILL.md` 的子目录并将其作为 skill 安装。
 
+## 同步到 Codex
+
+使用 `link-codex-skills.sh` 将 `~/.claude/skills/` 下所有 Claude Code skill 链接到 `~/.codex/skills/`，让 Codex 也能发现并调用这些 skill：
+
+```bash
+./link-codex-skills.sh install     # 创建缺失链接
+./link-codex-skills.sh status      # 查看链接状态
+./link-codex-skills.sh update      # 重建本脚本管理的链接
+./link-codex-skills.sh uninstall   # 移除本脚本管理的链接
+```
+
+脚本默认不会覆盖 `~/.codex/skills/` 中已有的非符号链接，也不会改动指向其他位置的符号链接。可通过环境变量覆盖源和目标目录：
+
+```bash
+CLAUDE_SKILLS_DIR=~/.claude/skills CODEX_SKILLS_DIR=~/.codex/skills ./link-codex-skills.sh install
+```
+
 ## 目录约定
 
 每个 skill 是一个子目录，目录下必须包含 `SKILL.md`：
@@ -28,6 +45,7 @@
 ```
 claude-code-skills/
 ├── manage.sh
+├── link-codex-skills.sh
 ├── frontend-design/
 │   └── SKILL.md
 └── ...
