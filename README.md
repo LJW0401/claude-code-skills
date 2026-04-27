@@ -6,6 +6,7 @@
 
 - **frontend-design** — 创建高质量前端界面的美学原则与设计指导
 - **daily-summary** — 基于当天 Claude Code 会话记录生成每日工作总结
+- **weekly-summary** — 基于最近 7 天的日报或原始会话记录生成每周工作总结
 
 ## 安装
 
