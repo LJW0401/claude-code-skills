@@ -62,6 +62,8 @@ ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
+FORCE=0
+
 # --- 安装 ---
 do_install() {
   info "安装 skill 链接到 ${SKILLS_DIR}/"
@@ -80,8 +82,11 @@ do_install() {
         warn "${skill} 已安装，跳过"
         ((skipped++)) || true
         continue
+      elif (( FORCE )); then
+        rm "$link"
+        warn "${skill} 原指向 ${current}，已被 -f 覆盖"
       else
-        error "${skill} 已存在但指向 ${current}，请先卸载或手动处理"
+        error "${skill} 已存在但指向 ${current}，请先卸载或使用 -f 强制覆盖"
         ((skipped++)) || true
         continue
       fi
@@ -146,14 +151,18 @@ do_update() {
     target="${REPO_NAME}/${rel}"
     link="${SKILLS_DIR}/${skill}"
 
-    # 删除旧链接（仅删除属于本项目的）
+    # 删除旧链接（仅删除属于本项目的，除非 -f 强制）
     if [[ -L "$link" ]]; then
       local current
       current="$(readlink "$link")"
       # 兼容历史一级路径与新的多级路径
       if [[ "$current" != "$target" && "$current" != "${REPO_NAME}/${skill}" ]]; then
-        error "${skill} 链接指向 ${current}，不属于本项目，跳过"
-        continue
+        if (( FORCE )); then
+          warn "${skill} 原指向 ${current}，已被 -f 覆盖"
+        else
+          error "${skill} 链接指向 ${current}，不属于本项目，跳过（可加 -f 强制覆盖）"
+          continue
+        fi
       fi
       rm "$link"
     elif [[ -e "$link" ]]; then
@@ -202,7 +211,7 @@ usage() {
   cat <<HELP
 ${CYAN}Claude Code Skills 管理脚本${NC}
 
-用法: $(basename "$0") <命令>
+用法: $(basename "$0") <命令> [选项]
 
 命令:
   install     安装 skill（创建符号链接到 ~/.claude/skills/）
@@ -210,13 +219,26 @@ ${CYAN}Claude Code Skills 管理脚本${NC}
   update      更新 skill（重建符号链接）
   status      查看当前安装状态
 
+选项:
+  -f, --force  对 install / update：覆盖指向其它项目的同名 symlink
+
 Skill 列表:
 $(printf '  - %s\n' "${SKILLS[@]}")
 HELP
 }
 
 # --- 入口 ---
-case "${1:-}" in
+CMD="${1:-}"
+shift || true
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -f|--force) FORCE=1 ;;
+    *) error "未知参数：$1"; usage; exit 1 ;;
+  esac
+  shift
+done
+
+case "$CMD" in
   install)   do_install   ;;
   uninstall) do_uninstall ;;
   update)    do_update    ;;
