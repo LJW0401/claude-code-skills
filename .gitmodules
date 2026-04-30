@@ -1,0 +1,6 @@
+[submodule "claude-code-git-workflows"]
+	path = claude-code-git-workflows
+	url = git@github.com:LJW0401/claude-code-git-workflows.git
+[submodule "claude-code-project-workflows"]
+	path = claude-code-project-workflows
+	url = git@github.com:LJW0401/claude-code-project-workflows.git
