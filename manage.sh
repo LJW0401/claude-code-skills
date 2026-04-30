@@ -84,9 +84,9 @@ do_install() {
         continue
       elif (( FORCE )); then
         rm "$link"
-        warn "${skill} 原指向 ${current}，已被 -f 覆盖"
+        warn "${skill} 原指向 ${current}，已被 --force 覆盖"
       else
-        error "${skill} 已存在但指向 ${current}，请先卸载或使用 -f 强制覆盖"
+        error "${skill} 已存在但指向 ${current}，请先卸载或使用 --force 强制覆盖"
         ((skipped++)) || true
         continue
       fi
@@ -158,7 +158,7 @@ do_update() {
       # 兼容历史一级路径与新的多级路径
       if [[ "$current" != "$target" && "$current" != "${REPO_NAME}/${skill}" ]]; then
         if (( FORCE )); then
-          warn "${skill} 原指向 ${current}，已被 -f 覆盖"
+          warn "${skill} 原指向 ${current}，已被 --force 覆盖"
         else
           error "${skill} 链接指向 ${current}，不属于本项目，跳过（可加 -f 强制覆盖）"
           continue
@@ -220,7 +220,7 @@ ${CYAN}Claude Code Skills 管理脚本${NC}
   status      查看当前安装状态
 
 选项:
-  -f, --force  对 install / update：覆盖指向其它项目的同名 symlink
+  --force  对 install / update：覆盖指向其它项目的同名 symlink
 
 Skill 列表:
 $(printf '  - %s\n' "${SKILLS[@]}")
@@ -232,7 +232,7 @@ CMD="${1:-}"
 shift || true
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -f|--force) FORCE=1 ;;
+    --force) FORCE=1 ;;
     *) error "未知参数：$1"; usage; exit 1 ;;
   esac
   shift
