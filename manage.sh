@@ -220,7 +220,7 @@ ${CYAN}Claude Code Skills 管理脚本${NC}
   status      查看当前安装状态
 
 选项:
-  force, --force  对 install / update：覆盖指向其它项目的同名 symlink
+  -f, force, --force  对 install / update：覆盖指向其它项目的同名 symlink
 
 Skill 列表:
 $(printf '  - %s\n' "${SKILLS[@]}")
@@ -232,7 +232,7 @@ CMD="${1:-}"
 shift || true
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    force|--force) FORCE=1 ;;
+    -f|force|--force) FORCE=1 ;;
     *) error "未知参数：$1"; usage; exit 1 ;;
   esac
   shift
