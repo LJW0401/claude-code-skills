@@ -46,7 +46,7 @@ allowed-tools: Bash, Read, Write, Glob
   - 只含 `session_id` / `ts` / `text`，适合补充用户问题索引
   - 不含助手回复和工具输出，不能单独作为工作总结主数据源
 - **当前日期**：取 `currentDate` 上下文，没有则用 `date +%F`
-- **日期边界**：日报按本地时区的自然日统计。Claude Code / Codex 的 `timestamp` 多为 UTC，抽取消息时要转成本地时区后再过滤，避免把凌晨或跨日会话归错日期
+- **复盘时间窗**：只统计本地时区 **当天 09:00–21:00** 的工作，这段之外（清晨、深夜、跨日）的会话和消息一律排除。Claude Code / Codex 的 `timestamp` 多为 UTC，抽取消息时要先转成本地时区，再用 `09:00 ≤ 本地时间 < 21:00` 过滤；定位活跃会话和抽取消息流两步都按这个窗口卡
 
 ## 流程
 
@@ -55,7 +55,8 @@ allowed-tools: Bash, Read, Write, Glob
 Claude Code：
 
 ```bash
-find ~/.claude/projects -name "*.jsonl" -newermt "YYYY-MM-DD 00:00" -printf "%T+ %s %p\n" | sort -r
+# 限定复盘窗口 09:00–21:00：修改时间落在该区间内的会话文件
+find ~/.claude/projects -name "*.jsonl" -newermt "YYYY-MM-DD 09:00" ! -newermt "YYYY-MM-DD 21:00" -printf "%T+ %s %p\n" | sort -r
 ```
 
 Codex：
@@ -65,8 +66,8 @@ import os, sqlite3, datetime
 db = os.path.expanduser("~/.codex/state_5.sqlite")
 con = sqlite3.connect(db)
 con.row_factory = sqlite3.Row
-start = int(datetime.datetime.fromisoformat("YYYY-MM-DDT00:00:00").timestamp())
-end = start + 86400
+start = int(datetime.datetime.fromisoformat("YYYY-MM-DDT09:00:00").timestamp())  # 复盘窗口起点 09:00
+end = int(datetime.datetime.fromisoformat("YYYY-MM-DDT21:00:00").timestamp())    # 复盘窗口终点 21:00
 for r in con.execute("""
     select id, title, cwd, rollout_path,
            datetime(created_at, 'unixepoch') as created,
@@ -171,7 +172,7 @@ Codex 事件分析重点：
   - 中文短否定词（「不对」「别」「停」「删掉」「错了」）→ 纠正点
 - **利用 timestamp**：抽消息时一并带上 `timestamp`，转成本地时区（`datetime.fromisoformat(ts.replace('Z','+00:00')).astimezone()`），可用于：
   - 识别「今天几点到几点在做 X」的时间块
-  - 过滤掉跨日会话里昨天的部分（只保留 `timestamp` 落在目标日期的条目）
+  - **按复盘窗口过滤**：只保留 `timestamp` 落在当天 `09:00 ≤ t < 21:00` 的条目，窗口外（清晨、深夜、跨日）的消息一律丢弃
   - 统计每个项目的投入时长（首条 → 末条 user 消息间的时间跨度）
   - 观察项目切换节奏（按 timestamp 排序所有项目的 user 消息，看上下文切换频率）
 
