@@ -29,6 +29,19 @@ trap 'notify "每日总结失败" "运行出错，详见 $STATE/summary.log" cri
 log "=== daily-summary 开始，目标日期 $TODAY ==="
 notify "开始今日总结" "正在复盘 $TODAY 09:00–21:00 的工作…"
 
+# 前置检查：复盘窗口 09:00–21:00 内若没有任何 Claude Code 会话，视为今日无工作，
+# 直接跳过，不跑 claude、不发邮件（对齐休息日处理，避免发空报告）。
+WIN_START="$TODAY 09:00"
+WIN_END="$TODAY 21:00"
+SESSION_COUNT="$(find "$HOME/.claude/projects" -name "*.jsonl" \
+  -newermt "$WIN_START" ! -newermt "$WIN_END" 2>/dev/null | wc -l)"
+if [ "$SESSION_COUNT" -eq 0 ]; then
+  log "窗口内无任何会话，今日无工作，跳过（不发邮件）。"
+  notify "今日无工作内容" "$TODAY 09:00–21:00 无会话记录，已跳过复盘。"
+  exit 0
+fi
+log "窗口内发现 $SESSION_COUNT 个会话文件，继续复盘。"
+
 # 发邮件前确认 token 有效，过期直接失败（避免静默不发）
 if ! lark-cli doctor --offline >/dev/null 2>&1; then
   log "lark-cli 本地状态异常，终止。"; exit 1
