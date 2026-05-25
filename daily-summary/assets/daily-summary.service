@@ -1,0 +1,11 @@
+[Unit]
+Description=每日工作复盘（扫描 Claude Code/Codex 会话→生成 HTML→发送邮件）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash %h/ClaudeCode/tools/daily-summary/daily-summary.sh
+Environment=PATH=%h/.npm-global/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+StandardOutput=append:%h/.local/state/daily-summary/summary.log
+StandardError=append:%h/.local/state/daily-summary/summary.log

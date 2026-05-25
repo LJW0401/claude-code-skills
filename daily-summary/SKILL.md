@@ -275,6 +275,27 @@ Codex 事件分析重点：
   - 发送前确认 token 未过期（`lark-cli doctor`），过期会发送失败，需重新授权
 - 发送成功后报告：HTML 路径、邮件已发送（地址来自 lark-cli，可不在对话里回显完整邮箱）
 
+## 定时服务（每天 21:00 自动复盘并发邮件）
+
+当用户要求「每天自动复盘 / 定时发日报邮件 / 装个定时任务」时，用 `assets/manage.sh` 一键安装 systemd user timer，在每天 21:00（复盘窗口终点）自动跑本 skill。`assets/` 下的相关文件：
+
+- `manage.sh`：管理脚本，子命令 `install / status / run / restart / logs / uninstall`
+- `daily-summary.sh`：包装脚本，无头调用 `claude --print --dangerously-skip-permissions` 跑本 skill。daily-summary 让 Claude 自行驱动工具（find/python/lark-cli）走完全程，无人值守必须放开工具权限——这是该方案的必要条件，仅限定时任务上下文。
+- `daily-summary.service`：oneshot service，日志与 HTML 都落在 `~/.local/state/daily-summary/`
+- `daily-summary.timer`：`OnCalendar=*-*-* 21:00:00` + `Persistent=true`（关机错过会开机补跑）
+
+```bash
+cd <skill>/assets
+./manage.sh install     # 部署脚本+unit、开 linger、启用定时器（先校验 lark-cli 登录态）
+./manage.sh status      # 看下次触发时间与 service 状态
+./manage.sh run         # 立即手动跑一次（会真发邮件），用于验证链路
+./manage.sh restart     # 改动 unit/脚本后重新部署并重启定时器使其生效
+./manage.sh logs        # tail 运行日志
+./manage.sh uninstall   # 停用并移除 unit 与脚本（保留日志与历史 HTML）
+```
+
+部署到用户 home 的是运行态文件，不进 git 仓库；仓库只保留 `assets/` 模板。
+
 ## 注意事项
 
 - **不要臆造**：只写会话里真实出现过的工作。没抽到有价值的信号就承认没有，不要填充「应该做了什么」
