@@ -1,6 +1,6 @@
 ---
 name: weekly-summary
-description: 基于最近 7 天 Claude Code 活跃会话生成每周工作总结。优先聚合已有的 daily-summary-*.md 文件；若不存在则回退到直接扫描 ~/.claude/projects 下的 .jsonl 会话。重点提炼本周主攻项目、里程碑（commit/PR/release）、闭环与未闭环清单，输出可直接提交的周报 md。当用户说「总结本周工作」「写个周报」「输出每周总结」或类似诉求时使用。
+description: 基于最近 7 天 Claude Code 活跃会话生成每周工作总结。优先聚合已有的 daily-summary-*.html 文件；若不存在则回退到直接扫描 ~/.claude/projects 下的 .jsonl 会话。重点提炼本周主攻项目、里程碑（commit/PR/release）、闭环与未闭环清单，直接组织成 HTML 文档（不生成中间 md）并通过 lark-cli 发送到本人飞书邮箱。当用户说「总结本周工作」「写个周报」「输出每周总结」或类似诉求时使用。
 ---
 
 # weekly-summary
@@ -17,12 +17,14 @@ description: 基于最近 7 天 Claude Code 活跃会话生成每周工作总结
 ## 数据源（优先级）
 
 ### 优先源：已有的 daily-summary 文件
-周总结应优先扫描最近 7 天的 `daily-summary-YYYY-MM-DD.md`（通常在用户工作目录下或 `~/Desktop/feishu/` 之类固定位置），用它们做聚合：
+周总结应优先扫描最近 7 天的 `daily-summary-YYYY-MM-DD.html`（定时任务产物固定在 `~/.local/state/daily-summary/`，手动跑的可能在工作目录下），用它们做聚合：
 ```bash
-# 常见位置，按用户习惯调整
-find ~/Desktop -maxdepth 3 -name "daily-summary-*.md" -newermt "7 days ago" 2>/dev/null
-find . -maxdepth 2 -name "daily-summary-*.md" -newermt "7 days ago" 2>/dev/null
+# 定时任务默认产物位置
+find ~/.local/state/daily-summary -maxdepth 1 -name "daily-summary-*.html" -newermt "7 days ago" 2>/dev/null
+# 手动运行可能落在工作目录或桌面，按用户习惯补扫
+find ~/Desktop . -maxdepth 3 -name "daily-summary-*.html" -newermt "7 days ago" 2>/dev/null
 ```
+从 HTML 提炼时直接读取正文文本即可（标签可忽略），日报已做过归类，周报只需二次聚合。
 日报已做过「跳过 system-reminder / 识别 skill 调用 / 按项目归类」这些重活，周总结只需要做二次提炼。
 
 ### 回退源：jsonl 原始会话
@@ -41,7 +43,7 @@ find ~/.claude/projects -name "*.jsonl" -newermt "7 days ago" -printf "%T+ %s %p
 
 ### 第一步：确定区间 + 定位输入
 1. 解析用户输入的时间窗口，没说就用最近 7 天
-2. 列出区间内所有 `daily-summary-*.md`，输出清单给用户确认覆盖哪些日期
+2. 列出区间内所有 `daily-summary-*.html`，输出清单给用户确认覆盖哪些日期
 3. 若缺失某天日报（例如周末没工作、或用户没跑过 daily-summary），标注「该日无日报，已回退到 jsonl 抽取」并对缺失日期跑一次轻量 jsonl 抽取作为补丁
 
 ### 第二步：按项目聚合
@@ -62,9 +64,9 @@ find ~/.claude/projects -name "*.jsonl" -newermt "7 days ago" -printf "%T+ %s %p
 - **悬而未决的尾巴**：哪些问题周一就出现、到周日还没解决（最值得优先处理的部分）
 - **上下文切换成本**：统计本周同时推进的项目数（>3 个活跃项目通常意味着精力分散）
 
-### 第四步：输出 md（三层结构）
+### 第四步：组织内容并生成 HTML（三层结构）
 
-顶层摘要可直接粘到周报；中层项目进展供 1-on-1 或月度复盘引用；底层时间线/未闭环供本人内省。
+**不生成中间 md 文件**，直接产出 HTML。顶层摘要可直接粘到周报；中层项目进展供 1-on-1 或月度复盘引用；底层时间线/未闭环供本人内省。下面的 markdown 仅说明内容结构，实际落盘的是按此结构渲染的 HTML（见第五步）：
 
 ```markdown
 # 每周工作总结 — YYYY-MM-DD 至 YYYY-MM-DD（第 X 周）
@@ -136,7 +138,35 @@ find ~/.claude/projects -name "*.jsonl" -newermt "7 days ago" -printf "%T+ %s %p
 - **项目进展**：按本周真实投入时长降序；每个项目必须有「阶段跃迁」和「下周计划」，否则删掉这个项目只留一行摘要
 - **时间线**：每天 2-3 条即可，追求节奏感而不是完整性；没有事件的日子直接跳过或标「idle」
 - **闭环 vs 未闭环**：这两部分是周报最有价值的部分。闭环给自己正反馈，未闭环给下周定优先级
-- **输出路径**：默认当前工作目录下的 `weekly-summary-YYYY-Www.md`（如 `weekly-summary-2026-W17.md`），除非用户指定别处
+
+### 第五步：落盘 HTML 并发送邮件
+
+把第四步组织好的内容直接渲染为 HTML 落盘，再发到本人飞书邮箱。**全程不产出 md 文件。**
+
+> 邮件地址等敏感信息**不要写进本文档或任何产物**，发送时用 lark-cli 现场获取，绝不硬编码。
+
+- **HTML 渲染**：参考 `../daily-summary/assets/template.html` 的样式骨架（内联样式、标题/列表/分割线、`<code>` 标识符），按本 skill 的三层结构填充。HTML 落盘为 `weekly-summary-YYYY-Www.html`（如 `weekly-summary-2026-W17.html`），路径默认当前工作目录，除非用户指定别处。
+  - **禁止 `<button>` / `<script>` / `onclick` 等任何依赖 JS 的交互元素**：邮件客户端会剥离 JS，按钮点了无效，只会留个死控件。
+- **获取本人邮箱地址**（不要硬编码，每次现场查）：
+
+  ```bash
+  ME=$(lark-cli mail user_mailboxes profile --params '{"user_mailbox_id":"me"}' -q '.data.primary_email_address')
+  ```
+
+- **发送邮件**：
+
+  ```bash
+  lark-cli mail +send \
+    --to "$ME" \
+    --subject "每周工作总结 — YYYY-Www" \
+    --body "$(cat weekly-summary-YYYY-Www.html)" \
+    --confirm-send
+  ```
+
+  - body 是 HTML，lark-cli 自动识别为 HTML 邮件，不要加 `--plain-text`
+  - `--confirm-send` 直接发送；去掉则只存草稿。默认直接发，首次或用户要求确认时先存草稿让用户过目
+  - 发送前确认 token 未过期（`lark-cli doctor`），过期会发送失败，需重新授权
+- 发送成功后报告：HTML 路径、邮件已发送（地址来自 lark-cli，可不在对话里回显完整邮箱）
 
 ## 与 daily-summary 的配合建议
 
