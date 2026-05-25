@@ -1,7 +1,15 @@
 ---
 name: daily-summary
-description: 基于当天 Claude Code / Codex 活跃会话生成每日工作总结。扫描 ~/.claude/projects 下的 Claude Code .jsonl，以及 ~/.codex/state_5.sqlite 索引到的 Codex rollout-*.jsonl，从用户消息、助手回复、工具调用和命令结果中还原工作主题，按「主力项目 / 辅助项目 / 跨项目共识」组织成 md 文档。当用户说「总结今天的工作」「根据对话整理日报」「输出每日总结」或类似诉求时使用。
+description: 基于当天 Claude Code / Codex 活跃会话生成每日工作总结。扫描 ~/.claude/projects 下的 Claude Code .jsonl，以及 ~/.codex/state_5.sqlite 索引到的 Codex rollout-*.jsonl，从用户消息、助手回复、工具调用和命令结果中还原工作主题，按「主力项目 / 辅助项目 / 跨项目共识」组织成 md 文档；生成完成后渲染一份 HTML 版并通过 lark-cli 发送到本人飞书邮箱。当用户说「总结今天的工作」「根据对话整理日报」「输出每日总结」或类似诉求时使用。
+allowed-tools: Bash, Read, Write, Glob
 ---
+
+## 依赖工具
+
+- **Bash**：`find`（定位当天会话文件）、`python3`（解析 jsonl / 读 sqlite / md→HTML 渲染）、`lark-cli`（取邮箱地址、发邮件）、`date`（取当前日期）
+- **Read / Write**：读取会话片段、写出 md 与 HTML 产物
+- **Glob**：按 glob 匹配 `~/.claude/projects` / `~/.codex/sessions` 下的 jsonl
+- **lark-cli**：`mail user_mailboxes profile`（取本人邮箱）、`mail +send`（发送 HTML 邮件）、`doctor`（发送前确认 token 有效）
 
 # daily-summary
 
@@ -229,6 +237,34 @@ Codex 事件分析重点：
 - 技术细节要具体（函数名、状态名、API 形状等），避免「优化了若干功能」式空话
 - 输出路径默认为当前工作目录下的 `daily-summary-YYYY-MM-DD.md`，除非用户指定别处
 - 文末标注数据源：`数据源：Claude Code X 个会话 + Codex Y 个线程（Z 个 rollout）`。如果某类数据源不存在，明确写 0，不要假设
+
+### 第五步：生成 HTML 并发送邮件
+
+md 总结落盘后，渲染一份 HTML 版并发到本人飞书邮箱。
+
+> 邮件地址等敏感信息**不要写进本文档或任何产物**，发送时用 lark-cli 现场获取，绝不硬编码。
+
+- **HTML 渲染**：把第四步的 md 转成 HTML。优先用本机工具（`python -m markdown`、`pandoc`），没有就手动构造：标题 `<h1>/<h2>/<h3>`、列表 `<ul><li>`、分割线 `<hr>`、加粗 `<strong>`、代码块 `<pre><code>`。包一层简单内联样式（字体、行高、max-width）保证邮件客户端可读。HTML 落盘为 `daily-summary-YYYY-MM-DD.html`，与 md 同目录。
+- **获取本人邮箱地址**（不要硬编码，每次现场查）：
+
+  ```bash
+  ME=$(lark-cli mail user_mailboxes profile --params '{"user_mailbox_id":"me"}' -q '.data.primary_email_address')
+  ```
+
+- **发送邮件**：
+
+  ```bash
+  lark-cli mail +send \
+    --to "$ME" \
+    --subject "每日工作总结 — YYYY-MM-DD" \
+    --body "$(cat daily-summary-YYYY-MM-DD.html)" \
+    --confirm-send
+  ```
+
+  - body 是 HTML，lark-cli 自动识别为 HTML 邮件，不要加 `--plain-text`
+  - `--confirm-send` 直接发送；去掉则只存草稿。日报默认直接发，首次或用户要求确认时先存草稿让用户过目
+  - 发送前确认 token 未过期（`lark-cli doctor`），过期会发送失败，需重新授权
+- 发送成功后报告：md 路径、HTML 路径、邮件已发送（地址来自 lark-cli，可不在对话里回显完整邮箱）
 
 ## 注意事项
 
