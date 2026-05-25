@@ -280,7 +280,7 @@ Codex 事件分析重点：
 当用户要求「每天自动复盘 / 定时发日报邮件 / 装个定时任务」时，用 `assets/manage.sh` 一键安装 systemd user timer，在每天 21:00（复盘窗口终点）自动跑本 skill。`assets/` 下的相关文件：
 
 - `manage.sh`：管理脚本，子命令 `install / status / run / restart / logs / uninstall`
-- `daily-summary.sh`：包装脚本，无头调用 `claude --print --dangerously-skip-permissions` 跑本 skill。daily-summary 让 Claude 自行驱动工具（find/python/lark-cli）走完全程，无人值守必须放开工具权限——这是该方案的必要条件，仅限定时任务上下文。
+- `daily-summary.sh`：包装脚本，无头调用 `claude --print --dangerously-skip-permissions` 跑本 skill。daily-summary 让 Claude 自行驱动工具（find/python/lark-cli）走完全程，无人值守必须放开工具权限——这是该方案的必要条件，仅限定时任务上下文。开始/完成/失败时用 `notify-send` 弹桌面通知（通知失败不影响主流程）。
 - `daily-summary.service`：oneshot service，日志与 HTML 都落在 `~/.local/state/daily-summary/`
 - `daily-summary.timer`：`OnCalendar=*-*-* 21:00:00` + `Persistent=true`（关机错过会开机补跑）
 
