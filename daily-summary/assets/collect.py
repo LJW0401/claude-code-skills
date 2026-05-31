@@ -146,12 +146,14 @@ def collect_codex(win_start, win_end):
         return []
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
+    # 只卡下界，与 Claude Code 的 mtime>=start 对齐：候选 = 窗口起点后仍有活动的线程。
+    # 不加 updated_at<end 上界，否则「窗口内有消息但活动延续到 21:00 之后」的线程
+    # 会被整条丢弃；精度交给下面 _read_codex_file 的逐条 timestamp 过滤兜底。
     start_epoch = int(win_start.timestamp())
-    end_epoch = int(win_end.timestamp())
     rows = con.execute(
         "select rollout_path, cwd, git_branch, title "
-        "from threads where updated_at >= ? and updated_at < ? order by updated_at desc",
-        (start_epoch, end_epoch),
+        "from threads where updated_at >= ? order by updated_at desc",
+        (start_epoch,),
     ).fetchall()
     con.close()
     sessions = []
