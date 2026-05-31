@@ -14,6 +14,8 @@
 
 ## 手动触发
 
+> 「采集 + 归类」(扫描会话、按 09:00–21:00 窗口过滤、按 `cwd` 合并成项目分组)已固化为 `assets/collect.py`,纯标准库、行为确定;Claude 拿它输出的 JSON digest 去提炼主题、撰写正文。可单独跑 `python3 assets/collect.py --date YYYY-MM-DD --pretty` 看采集结果。
+
 在 Claude Code 里直接说,例如:
 
 - 「总结今天的工作」

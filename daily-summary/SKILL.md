@@ -6,9 +6,9 @@ allowed-tools: Bash, Read, Write, Glob
 
 ## 依赖工具
 
-- **Bash**：`find`（定位当天会话文件）、`python3`（解析 jsonl / 读 sqlite）、`lark-cli`（取邮箱地址、发邮件）、`date`（取当前日期）
-- **Read / Write**：读取会话片段、写出 HTML 产物
-- **Glob**：按 glob 匹配 `~/.claude/projects` / `~/.codex/sessions` 下的 jsonl
+- **Bash**：`python3 assets/collect.py`（采集 + 归类，产出 digest）、`lark-cli`（取邮箱地址、发邮件）、`date`（取当前日期）
+- **Read / Write**：按需定点读 digest 里 `file` 指向的会话文件、写出 HTML 产物
+- **assets/collect.py**：固化的「采集 + 归类」实现，只依赖 Python 标准库（json / sqlite3 / datetime）
 - **lark-cli**：`mail user_mailboxes profile`（取本人邮箱）、`mail +send`（发送 HTML 邮件）、`doctor`（发送前确认 token 有效）
 
 # daily-summary
@@ -50,131 +50,45 @@ allowed-tools: Bash, Read, Write, Glob
 
 ## 流程
 
-### 第一步：定位当天活跃会话
+### 第一步：采集 + 归类（运行 collect.py）
 
-Claude Code：
+「定位会话 → 时间窗过滤 → 抽取消息流 → 按 cwd 归类」这一整段确定性机械活已固化为 `assets/collect.py`，**不要再现场手写 find/sqlite/python**。直接运行它，拿到一份按项目分好组的 JSON digest：
 
 ```bash
-# 限定复盘窗口 09:00–21:00：修改时间落在该区间内的会话文件
-find ~/.claude/projects -name "*.jsonl" -newermt "YYYY-MM-DD 09:00" ! -newermt "YYYY-MM-DD 21:00" -printf "%T+ %s %p\n" | sort -r
+# 默认取今天(本地)、窗口 09:00–21:00；用 currentDate 上下文指定日期更稳妥
+python3 <skill>/assets/collect.py --date YYYY-MM-DD --pretty
 ```
 
-Codex：
+脚本只依赖 Python 标准库，行为固定：扫描 `~/.claude/projects` 与 Codex `state_5.sqlite → rollout`、按**每条消息的本地时间** `09:00 ≤ t < 21:00` 过滤（跨天会话只保留当天窗口内的消息，根除跨天污染）、按 `cwd` 把 Claude Code 与 Codex 会话合并成项目分组、算好体量权重。
 
-```python
-import os, sqlite3, datetime
-db = os.path.expanduser("~/.codex/state_5.sqlite")
-con = sqlite3.connect(db)
-con.row_factory = sqlite3.Row
-start = int(datetime.datetime.fromisoformat("YYYY-MM-DDT09:00:00").timestamp())  # 复盘窗口起点 09:00
-end = int(datetime.datetime.fromisoformat("YYYY-MM-DDT21:00:00").timestamp())    # 复盘窗口终点 21:00
-for r in con.execute("""
-    select id, title, cwd, rollout_path,
-           datetime(created_at, 'unixepoch') as created,
-           datetime(updated_at, 'unixepoch') as updated
-    from threads
-    where updated_at >= ? and updated_at < ?
-    order by updated_at desc
-""", (start, end)):
-    print(dict(r))
-```
+下面的「数据源」与字段说明是脚本的解析依据，供排错时对照；正常流程不需要自己复刻解析逻辑。
 
-按最后修改时间 + 文件大小初步判断权重：**大文件（≥几 MB）或消息条数多的，通常是当天主力项目**；KB 级的零散会话归入辅助或忽略。
+### 第二步：读懂 digest
 
-### 第二步：抽取消息流
+collect.py 的输出顶层是 `{date, window, stats, projects[]}`，`projects` 已按 `cwd` 把 Claude Code 与 Codex 会话合并好、按体量权重排好序（主力在前）。各字段：
 
-#### Claude Code 用户消息
+- 项目级：`project` / `cwd` / `weight`（`primary`/`normal`/`aux`，是按体量给的初判，结合实际产出可再调整）/ `rounds`（用户轮数）/ `span`（`start`/`end`/`minutes` 首尾时刻与跨度）
+- `sessions[]`：该项目下每个会话——`source`（`claude-code`/`codex`）、`branch`、`size_kb`、`span`、`user_msgs[]`（窗口内真实提问 `{t, text}`，text 已截断 ~220 字）、`signals[]`
+- Codex 会话另带 `title`、`agent_first`/`agent_last`（首尾助手可见回复）、`tools`（`calls`/`commands`/`failed` 计数）——用于判断「Codex 承诺/交付了什么」以及「回复说完成但命令是否真的成功」
+- `signals[]` 标记：`skill:<name>`（入口/交付 skill，看项目处在什么阶段）、`interrupt`（用户打断，最有复盘价值）、`terse`（单字符/半自动信号）、`error:…`、`correction`（不对/停/回退等纠正）、`cmd-fail@HH:MM:命令 -> 报错首行`、`deliver@HH:MM:命令`（git commit/push、gh pr、release）
 
-对每个 Claude Code 会话文件跑以下 Python 片段，拉出首尾若干条真实用户提问（跳过以 `<` 开头的 system-reminder、skill 注入和 tool_result）：
+> digest 是写总结的**唯一数据入口**，正常不需要再回去翻原始 jsonl。只有当某条信号需要展开上下文（如想看某次报错的完整堆栈），才按 digest 里的 `file` 路径定点去读那个会话文件。
 
-```python
-import json
-with open(path) as fp:
-    users = []
-    for line in fp:
-        try: o = json.loads(line)
-        except: continue
-        if o.get('type') != 'user': continue
-        c = o.get('message', {}).get('content', '')
-        if isinstance(c, list):
-            c = next((p.get('text','') for p in c if isinstance(p,dict) and p.get('type')=='text'), '')
-        if isinstance(c, str) and c.strip() and not c.startswith('<') and 'tool_result' not in c[:20]:
-            users.append(c.strip())
-# 打印 len(users)、前 8 条、后 4 条
-```
-
-#### Codex 用户消息、助手回复与工具信号
-
-对每个 Codex `rollout-*.jsonl` 抽取完整消息流。Codex 工作总结不能只看用户输入，还应结合助手回复、工具调用和命令结果判断实际完成了什么：
-
-```python
-import json
-from datetime import datetime, timezone
-
-events = []
-with open(path) as fp:
-    for line in fp:
-        try:
-            o = json.loads(line)
-        except Exception:
-            continue
-        ts = o.get("timestamp")
-        typ = o.get("type")
-        p = o.get("payload", {})
-
-        if typ == "session_meta":
-            events.append((ts, "meta", {
-                "cwd": p.get("cwd"),
-                "git": p.get("git"),
-                "model": p.get("model"),
-            }))
-        elif typ == "event_msg" and p.get("type") == "user_message":
-            msg = (p.get("message") or "").strip()
-            if msg and not msg.startswith("<"):
-                events.append((ts, "user", msg))
-        elif typ == "event_msg" and p.get("type") == "agent_message":
-            msg = (p.get("message") or "").strip()
-            if msg:
-                events.append((ts, "assistant", msg))
-        elif typ == "response_item" and p.get("type") == "function_call":
-            events.append((ts, "tool_call", {
-                "name": p.get("name"),
-                "arguments": p.get("arguments"),
-                "call_id": p.get("call_id"),
-            }))
-        elif typ == "event_msg" and p.get("type") == "exec_command_end":
-            events.append((ts, "command", {
-                "command": p.get("command"),
-                "cwd": p.get("cwd"),
-                "exit_code": p.get("exit_code"),
-                "stdout": (p.get("stdout") or "")[:1000],
-                "stderr": (p.get("stderr") or "")[:1000],
-            }))
-
-# 打印 user / assistant 首尾消息、失败命令、commit/PR/release 等工具节点
-```
-
-Codex 事件分析重点：
+读 digest 时的分析重点：
 
 - **用户消息**：还原需求、纠正、追加要求和收尾确认
 - **助手可见回复**：判断 Codex 向用户承诺了什么、最终交付说明是什么
 - **工具调用**：识别读文件、改文件、跑测试、启动服务、创建图片、调用子 agent 等动作
 - **命令结果**：识别测试是否通过、commit hash、git status 是否干净、失败命令和报错
-- **session_meta / turn_context**：用 `cwd` / git 分支 / 模型 / sandbox / approval mode 辅助归类，不把系统指令当成工作内容
-- **response_item.reasoning**：通常只作为内部推理或加密内容信号，默认不要写入总结
+- **branch / span**：digest 已带 git 分支与首尾时刻，用于归类和还原「几点到几点在做 X」，不要把系统指令当成工作内容
+- **reasoning 不入总结**：Codex 内部推理/加密内容 collect.py 已不抽取，digest 里没有，也不要去补
 
-- **开头消息**反映主题立项；**结尾消息**反映当天收尾状态；中间的 skill 注入（以 `Base directory for this skill:` 开头）可用于识别调用了 commit / release / pr / merge 等节点，作为「交付节奏」信号。
-- **为详细分析抽取完整消息流**：仅靠首尾消息不足以写出有信息量的复盘。应保留每条用户消息的 `(timestamp, 前 200 字)`，另外额外捕获以下信号：
-  - `[Request interrupted by user]` → 用户打断点
-  - 一个字符的消息（如 `a`、`2`、空回车）→ 半自动模式信号
-  - 包含 `Traceback` / `ERROR` / `Exception` 的消息 → 报错点，贴首行异常
-  - 用户粘贴的错误堆栈或命令输出 → 单独标记，不要误当成"用户提问"
-  - 中文短否定词（「不对」「别」「停」「删掉」「错了」）→ 纠正点
-- **利用 timestamp**：抽消息时一并带上 `timestamp`，转成本地时区（`datetime.fromisoformat(ts.replace('Z','+00:00')).astimezone()`），可用于：
-  - 识别「今天几点到几点在做 X」的时间块
-  - **按复盘窗口过滤**：只保留 `timestamp` 落在当天 `09:00 ≤ t < 21:00` 的条目，窗口外（清晨、深夜、跨日）的消息一律丢弃
-  - 统计每个项目的投入时长（首条 → 末条 user 消息间的时间跨度）
-  - 观察项目切换节奏（按 timestamp 排序所有项目的 user 消息，看上下文切换频率）
+打断、纠正、报错、半自动、交付等信号 collect.py 已在 `signals[]` 里预先标好（见第二步字段说明），无需自己再从原文里找。读 digest 时把它们当作复盘抓手：
+
+- **`user_msgs` 首尾**：首条反映当天是「接着昨天做」还是「新立项」，末条反映收尾状态
+- **`signals` 里的 `interrupt` / `correction`**：用户打断与纠正点，最有复盘价值，详细分析里要单列
+- **`cmd-fail` vs `agent_last`**：留意「Codex 回复说完成、但 `tools.failed>0` 或有 `cmd-fail`」的落差
+- **跨项目时间线**：把各 project 的 `span` 与 `user_msgs[].t` 混合排序，看上下文切换节奏与投入时长
 
 ### 第三步：按项目归类并识别主题
 
