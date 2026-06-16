@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <!--
   daily-summary 邮件 HTML 参考模板
-  - 双层结构：上半「摘要（可提交）」+ 下半「详细工作分析（本人复盘用）」，用 <hr> 隔开
+  - 主轴=全天时间线（甘特图 + 时间线叙事），副轴=各项目推进
+  - 结构顺序：全天时间线 → 可提交摘要 → 明日计划 → <hr> → 各项目推进 → 跨项目观察
   - 全内联样式，保证飞书/Gmail 等邮件客户端能正确渲染
-  - 禁止 <button> / <script> / onclick：邮件客户端会剥离 JS，按钮无效
-  - 占位符用 {{...}} 标注，渲染时整体替换；要点数量按当天实际产出增减
+  - 禁止 <button> / <script> / onclick / <svg> / <canvas>：邮件客户端会剥离 JS 与多数 SVG，
+    甘特图一律用 <table> + 单元格背景色实现
+  - 占位符用 {{...}} 标注，渲染时整体替换；行列数、要点数按当天实际产出增减
 -->
 <html lang="zh">
 <head>
@@ -15,14 +17,84 @@
 
 <h1 style="font-size:24px;border-bottom:2px solid #3370ff;padding-bottom:8px;">每日工作总结 — {{DATE}}</h1>
 
-<!-- ===== 摘要：每个要点一句话；产出多的项目用嵌套 <ul> 拆多条 ===== -->
+<!-- ===== 主轴：全天时间线 = 甘特图 + 时间线叙事 ===== -->
+<h2 style="font-size:19px;color:#3370ff;margin-top:28px;">全天时间线</h2>
+
+<!--
+  甘特图：行=项目，列=09–21 每小时一格（窗口非默认时按实际 window 切列）。
+  该项目在某小时内活动 → 给该格填项目色；没动 → 留白(#f7f8fa)。
+  色板（按项目顺序取用，主力在上）：
+    #3370ff 蓝 / #34c724 绿 / #ff8800 橙 / #f5222d 红 / #722ed1 紫 / #13c2c2 青
+  格子不放文字，只靠颜色；下方图例做「色块→项目」映射。
+-->
+<table style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:12px;margin-top:12px;">
+  <tr>
+    <td style="width:96px;padding:4px 6px;color:#646a73;font-weight:600;">项目＼时段</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">9</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">10</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">11</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">12</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">13</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">14</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">15</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">16</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">17</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">18</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">19</td>
+    <td style="padding:2px 0;text-align:center;color:#8f959e;">20</td>
+  </tr>
+  <!-- 一个项目一行；活动格 background 用该项目色，空闲格用 #f7f8fa。下面是示例（项目A 蓝、11:00–15:00 活动） -->
+  <tr>
+    <td style="padding:4px 6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{项目A}}</td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#3370ff;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#3370ff;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#3370ff;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#3370ff;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+  </tr>
+  <tr>
+    <td style="padding:4px 6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{项目B}}</td>
+    <td style="height:18px;background:#34c724;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#34c724;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#34c724;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#34c724;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+  </tr>
+</table>
+<!-- 图例：色块 → 项目 -->
+<p style="font-size:12px;color:#646a73;margin:8px 0 0;">
+  <span style="display:inline-block;width:11px;height:11px;background:#3370ff;border-radius:2px;vertical-align:middle;"></span> {{项目A}}&nbsp;&nbsp;
+  <span style="display:inline-block;width:11px;height:11px;background:#34c724;border-radius:2px;vertical-align:middle;"></span> {{项目B}}
+</p>
+
+<!-- 时间线叙事：从早到晚 10–15 个关键节点，标注切换/打断/交付 -->
+<ul style="margin-top:12px;">
+  <li><strong>{{HH:MM}}</strong> {{起手项目A，一句话}}</li>
+  <li><strong>{{HH:MM}}</strong> {{切到项目B / 被打断 / 交付 commit hash}}</li>
+  <li><strong>{{HH:MM}}</strong> {{…覆盖整天的关键节点}}</li>
+</ul>
+
+<!-- ===== 可提交摘要：每个要点一句话；产出多的项目用嵌套 <ul> 拆多条 ===== -->
 <h2 style="font-size:19px;color:#3370ff;margin-top:28px;">摘要（可提交）</h2>
 <ul>
   <li><strong>{{项目A（产出多）}}</strong>：
     <ul>
       <li>{{关键产出 1，一句话}}</li>
       <li>{{关键产出 2，一句话}}</li>
-      <li>{{关键产出 3，一句话}}</li>
     </ul>
   </li>
   <li><strong>{{项目B（只做一件事）}}</strong>：{{一句话带过}}</li>
@@ -40,8 +112,8 @@
 
 <hr style="border:none;border-top:1px solid #dee0e3;margin:32px 0;">
 
-<!-- ===== 详细分析：引用原话、贴 commit/决策，信息密度优先 ===== -->
-<h2 style="font-size:19px;color:#3370ff;">详细工作分析（本人复盘用）</h2>
+<!-- ===== 副轴：各项目推进，引用原话、贴 commit/决策，信息密度优先 ===== -->
+<h2 style="font-size:19px;color:#3370ff;">各项目推进（本人复盘用）</h2>
 
 <h3 style="font-size:16px;margin-top:24px;">{{项目A}}</h3>
 <ul>
@@ -61,10 +133,16 @@
   <li><strong>明日可跟进</strong>：{{具体到函数 / 文件 / PR 号}}</li>
 </ul>
 
+<h3 style="font-size:16px;margin-top:24px;">{{项目B}}</h3>
+<ul>
+  <li>（同上结构）</li>
+</ul>
+
 <h3 style="font-size:16px;margin-top:24px;">跨项目观察</h3>
 <ul>
-  <li><strong>时间线</strong>：{{各项目用户消息按 timestamp 混排的关键节点}}</li>
   <li><strong>投入时长</strong>：{{按跨度排序，标注 idle}}</li>
+  <li><strong>上下文切换成本</strong>：{{各项目被打断 / 来回切换次数}}</li>
+  <li><strong>技术共识</strong>：{{多个项目反复浮现的同一结论}}</li>
   <li><strong>被搁置 / 未闭环</strong>：{{未合并的 PR、没修的报错}}</li>
 </ul>
 
