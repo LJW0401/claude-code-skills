@@ -22,10 +22,13 @@
 
 <!--
   甘特图：行=项目，列=09–21 每小时一格（窗口非默认时按实际 window 切列）。
-  该项目在某小时内活动 → 给该格填项目色；没动 → 留白(#f7f8fa)。
+  ⚠️ 飞书等邮件客户端会剥离 CSS background / display:inline-block —— 单元格着色
+     必须用 <td> 的 bgcolor 属性（HTML 老属性，邮件客户端普遍保留），并在活动格
+     里放一个同色 █ 字符兜底（color 不会被剥离，万一 bgcolor 也失效仍能看出颜色）。
+     空闲格用浅灰 bgcolor + &nbsp; 占位（不能留空，空 <td> 会被某些客户端折叠）。
   色板（按项目顺序取用，主力在上）：
-    #3370ff 蓝 / #34c724 绿 / #ff8800 橙 / #f5222d 红 / #722ed1 紫 / #13c2c2 青
-  格子不放文字，只靠颜色；下方图例做「色块→项目」映射。
+    #3370ff 蓝 / #00b42a 绿 / #ff7d00 橙 / #f53f3f 红 / #722ed1 紫 / #14c9c9 青
+  图例用 color 渲染的 ■，同样规避 background 被剥离。
 -->
 <table style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:12px;margin-top:12px;">
   <tr>
@@ -43,42 +46,42 @@
     <td style="padding:2px 0;text-align:center;color:#8f959e;">19</td>
     <td style="padding:2px 0;text-align:center;color:#8f959e;">20</td>
   </tr>
-  <!-- 一个项目一行；活动格 background 用该项目色，空闲格用 #f7f8fa。下面是示例（项目A 蓝、11:00–15:00 活动） -->
+  <!-- 一个项目一行；活动格 bgcolor=项目色 + 同色 █，空闲格 bgcolor=#f2f3f5 + &nbsp;。示例：项目A 蓝、11:00–15:00 活动 -->
   <tr>
     <td style="padding:4px 6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{项目A}}</td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#3370ff;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#3370ff;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#3370ff;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#3370ff;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#3370ff" style="background-color:#3370ff;color:#3370ff;text-align:center;line-height:18px;border:1px solid #ffffff;">█</td>
+    <td bgcolor="#3370ff" style="background-color:#3370ff;color:#3370ff;text-align:center;line-height:18px;border:1px solid #ffffff;">█</td>
+    <td bgcolor="#3370ff" style="background-color:#3370ff;color:#3370ff;text-align:center;line-height:18px;border:1px solid #ffffff;">█</td>
+    <td bgcolor="#3370ff" style="background-color:#3370ff;color:#3370ff;text-align:center;line-height:18px;border:1px solid #ffffff;">█</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
   </tr>
   <tr>
     <td style="padding:4px 6px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{项目B}}</td>
-    <td style="height:18px;background:#34c724;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#34c724;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#34c724;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#34c724;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
-    <td style="height:18px;background:#f7f8fa;border:1px solid #fff;"></td>
+    <td bgcolor="#00b42a" style="background-color:#00b42a;color:#00b42a;text-align:center;line-height:18px;border:1px solid #ffffff;">█</td>
+    <td bgcolor="#00b42a" style="background-color:#00b42a;color:#00b42a;text-align:center;line-height:18px;border:1px solid #ffffff;">█</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#00b42a" style="background-color:#00b42a;color:#00b42a;text-align:center;line-height:18px;border:1px solid #ffffff;">█</td>
+    <td bgcolor="#00b42a" style="background-color:#00b42a;color:#00b42a;text-align:center;line-height:18px;border:1px solid #ffffff;">█</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
+    <td bgcolor="#f2f3f5" style="background-color:#f2f3f5;border:1px solid #ffffff;">&nbsp;</td>
   </tr>
 </table>
-<!-- 图例：色块 → 项目 -->
+<!-- 图例：色块 → 项目（用 color 渲染 ■，规避 background 被剥离） -->
 <p style="font-size:12px;color:#646a73;margin:8px 0 0;">
-  <span style="display:inline-block;width:11px;height:11px;background:#3370ff;border-radius:2px;vertical-align:middle;"></span> {{项目A}}&nbsp;&nbsp;
-  <span style="display:inline-block;width:11px;height:11px;background:#34c724;border-radius:2px;vertical-align:middle;"></span> {{项目B}}
+  <span style="color:#3370ff;font-size:14px;">■</span> {{项目A}}&nbsp;&nbsp;
+  <span style="color:#00b42a;font-size:14px;">■</span> {{项目B}}
 </p>
 
 <!-- 时间线叙事：从早到晚 10–15 个关键节点，标注切换/打断/交付 -->
