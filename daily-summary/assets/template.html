@@ -84,9 +84,10 @@
   <span style="color:#00b42a;font-size:14px;">■</span> {{项目B}}
 </p>
 
-<!-- 时间线叙事：从早到晚 10–15 个关键节点，标注切换/打断/交付 -->
+<!-- 时间线叙事：从早到晚 10–15 个关键节点，标注切换/打断/交付。
+     涉及飞书文档/网页/PR 时把资源名做成 <a href> 超链接（href 用 digest 抓到的原始 URL） -->
 <ul style="margin-top:12px;">
-  <li><strong>{{HH:MM}}</strong> {{起手项目A，一句话}}</li>
+  <li><strong>{{HH:MM}}</strong> {{起手项目A：把规范写成飞书文档}} <a href="{{原始飞书 URL}}" style="color:#3370ff;">{{文档名}}</a></li>
   <li><strong>{{HH:MM}}</strong> {{切到项目B / 被打断 / 交付 commit hash}}</li>
   <li><strong>{{HH:MM}}</strong> {{…覆盖整天的关键节点}}</li>
 </ul>
