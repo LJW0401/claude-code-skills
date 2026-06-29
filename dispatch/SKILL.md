@@ -2,7 +2,7 @@
 name: dispatch
 description: 用自然语言把任务派发给子 agent 执行，默认后台运行，可选前台运行
 disable-model-invocation: true
-argument-hint: [--fg] <自然语言任务描述>
+argument-hint: "[--fg] <自然语言任务描述>"
 ---
 
 把用户用自然语言描述的任务派发给一个子 agent 去执行。默认在后台运行（不阻塞当前对话），如果用户在参数里显式带上 `--fg` 或 `--foreground`，则改为前台运行（等待结果再继续）。
