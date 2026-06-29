@@ -35,7 +35,7 @@ cd assets
 ./manage.sh install     # 部署脚本+unit、开 linger、启用定时器(先校验 lark-cli 登录态)
 ./manage.sh status      # 看下次触发时间与 service 状态
 ./manage.sh run         # 立即手动跑一次(会真发邮件),用于验证链路
-./manage.sh restart     # 改动 unit/脚本后重新部署并重启使其生效
+./manage.sh restart     # 改动 unit/脚本/配置模板后重新部署并重启使其生效
 ./manage.sh logs        # tail 运行日志
 ./manage.sh uninstall   # 停用并移除 unit 与脚本(保留日志与历史 HTML)
 ```
@@ -46,6 +46,7 @@ cd assets
 - 可编辑 `~/ClaudeCode/tools/daily-summary/daily-summary.conf` 切换执行器：
   - `EXECUTOR=claude`：使用 Claude Code
   - `EXECUTOR=codex`：使用 Codex `codex exec --dangerously-bypass-approvals-and-sandbox`，切换前需确保 daily-summary skill 已安装到 Codex 可加载目录
+- `./manage.sh restart` 会用仓库里的 `assets/daily-summary.conf` 覆盖运行态配置；只想临时切换时直接改运行态配置即可
 
 ## 前置依赖
 

@@ -65,15 +65,12 @@ cmd_run() {
 }
 
 cmd_restart() {
-  echo "[restart] 重新部署 unit 并重启定时器（用于改动后生效）..."
+  echo "[restart] 重新部署脚本、unit 与配置，并重启定时器（用于改动后生效）..."
   install -m 755 "$SRC/daily-summary.sh"      "$BIN_DIR/daily-summary.sh"
   install -m 644 "$SRC/daily-summary.service" "$UNIT_DIR/daily-summary.service"
   install -m 644 "$SRC/daily-summary.timer"   "$UNIT_DIR/daily-summary.timer"
-  if [ ! -f "$CONFIG" ]; then
-    install -m 644 "$SRC/daily-summary.conf" "$CONFIG"
-  else
-    echo "[restart] 保留已有配置：$CONFIG"
-  fi
+  install -m 644 "$SRC/daily-summary.conf" "$CONFIG"
+  echo "[restart] 已更新配置：$CONFIG"
   systemctl --user daemon-reload
   systemctl --user restart "$UNIT"
   echo "[restart] 完成。下次触发："

@@ -226,7 +226,7 @@ cd <skill>/assets
 ./manage.sh install     # 部署脚本+unit、开 linger、启用定时器（先校验 lark-cli 登录态）
 ./manage.sh status      # 看下次触发时间与 service 状态
 ./manage.sh run         # 立即手动跑一次（会真发邮件），用于验证链路
-./manage.sh restart     # 改动 unit/脚本后重新部署并重启定时器使其生效
+./manage.sh restart     # 改动 unit/脚本/配置模板后重新部署并重启定时器使其生效；会覆盖运行态配置
 ./manage.sh logs        # tail 运行日志
 ./manage.sh uninstall   # 停用并移除 unit 与脚本（保留日志与历史 HTML）
 ```
