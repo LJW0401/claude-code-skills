@@ -42,7 +42,10 @@ cd assets
 
 - 运行日志与 HTML 落在 `~/.local/state/daily-summary/`
 - timer 配置 `Persistent=true`:关机错过的触发会在开机后补跑
-- 定时任务走 `claude --print --dangerously-skip-permissions` 放开工具权限(无人值守的必要条件,仅限该上下文)
+- 定时任务默认走 `claude --print --dangerously-skip-permissions` 放开工具权限(无人值守的必要条件,仅限该上下文)
+- 可编辑 `~/ClaudeCode/tools/daily-summary/daily-summary.conf` 切换执行器：
+  - `EXECUTOR=claude`：使用 Claude Code
+  - `EXECUTOR=codex`：使用 Codex `codex exec --dangerously-bypass-approvals-and-sandbox`，切换前需确保 daily-summary skill 已安装到 Codex 可加载目录
 
 ## 前置依赖
 

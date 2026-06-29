@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-# 资源目录（本脚本所在处，含 daily-summary.sh / .service / .timer）
+# 资源目录（本脚本所在处，含 daily-summary.sh / .service / .timer / .conf）
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BIN_DIR="$HOME/ClaudeCode/tools/daily-summary"
@@ -15,6 +15,7 @@ UNIT_DIR="$HOME/.config/systemd/user"
 STATE_DIR="$HOME/.local/state/daily-summary"
 LOG="$STATE_DIR/summary.log"
 UNIT="daily-summary.timer"
+CONFIG="$BIN_DIR/daily-summary.conf"
 
 usage() { echo "用法：$0 {install|status|run|restart|logs|uninstall}"; exit 1; }
 
@@ -28,6 +29,11 @@ cmd_install() {
   install -m 755 "$SRC/daily-summary.sh"      "$BIN_DIR/daily-summary.sh"
   install -m 644 "$SRC/daily-summary.service" "$UNIT_DIR/daily-summary.service"
   install -m 644 "$SRC/daily-summary.timer"   "$UNIT_DIR/daily-summary.timer"
+  if [ ! -f "$CONFIG" ]; then
+    install -m 644 "$SRC/daily-summary.conf" "$CONFIG"
+  else
+    echo "[install] 保留已有配置：$CONFIG"
+  fi
 
   echo "[install] 开启 linger（注销后仍常驻）..."
   loginctl enable-linger "$USER"
@@ -44,6 +50,12 @@ cmd_status() {
   systemctl --user list-timers "$UNIT" --all --no-pager || true
   echo "---"
   systemctl --user status daily-summary.service --no-pager || true
+  echo "--- config: $CONFIG"
+  if [ -f "$CONFIG" ]; then
+    sed -n '1,80p' "$CONFIG"
+  else
+    echo "配置文件不存在，将在 install/restart 时创建默认配置。"
+  fi
 }
 
 cmd_run() {
@@ -57,6 +69,11 @@ cmd_restart() {
   install -m 755 "$SRC/daily-summary.sh"      "$BIN_DIR/daily-summary.sh"
   install -m 644 "$SRC/daily-summary.service" "$UNIT_DIR/daily-summary.service"
   install -m 644 "$SRC/daily-summary.timer"   "$UNIT_DIR/daily-summary.timer"
+  if [ ! -f "$CONFIG" ]; then
+    install -m 644 "$SRC/daily-summary.conf" "$CONFIG"
+  else
+    echo "[restart] 保留已有配置：$CONFIG"
+  fi
   systemctl --user daemon-reload
   systemctl --user restart "$UNIT"
   echo "[restart] 完成。下次触发："
@@ -74,7 +91,7 @@ cmd_uninstall() {
   rm -f "$UNIT_DIR/daily-summary.timer" "$UNIT_DIR/daily-summary.service"
   rm -f "$BIN_DIR/daily-summary.sh"
   systemctl --user daemon-reload
-  echo "[uninstall] 完成（日志与历史 HTML 保留在 $STATE_DIR）。"
+  echo "[uninstall] 完成（配置、日志与历史 HTML 保留在 $BIN_DIR 和 $STATE_DIR）。"
 }
 
 case "${1:-}" in
