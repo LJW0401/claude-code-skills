@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Claude Code Skills 管理脚本
-# 在 ~/.claude/skills/ 中安装、卸载、更新符号链接
+# Claude Code / Codex Skills 管理脚本
+# 在 ~/.claude/skills/ 或 ~/.codex/skills/ 中安装、卸载、更新符号链接
 #
 
 set -euo pipefail
@@ -9,7 +9,10 @@ set -euo pipefail
 # --- 配置 ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_NAME="$(basename "$SCRIPT_DIR")"
-SKILLS_DIR="$(dirname "$SCRIPT_DIR")"
+CLAUDE_SKILLS_DIR="${CLAUDE_HOME:-$HOME/.claude}/skills"
+CODEX_SKILLS_DIR="${CODEX_HOME:-$HOME/.codex}/skills"
+SKILLS_DIR=""
+TARGET_NAME=""
 
 # 递归扫描所有包含 SKILL.md 的目录
 # SKILLS[i] 为 skill 名称（SKILL.md 所在目录的 basename）
@@ -63,16 +66,67 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
 FORCE=0
+TARGET=""
+
+set_target() {
+  local target="$1"
+  case "$target" in
+    claude|claude-code)
+      TARGET="claude"
+      TARGET_NAME="Claude Code"
+      SKILLS_DIR="$CLAUDE_SKILLS_DIR"
+      ;;
+    codex)
+      TARGET="codex"
+      TARGET_NAME="Codex"
+      SKILLS_DIR="$CODEX_SKILLS_DIR"
+      ;;
+    *)
+      error "未知安装目标：${target}（可选：claude, codex）"
+      usage
+      exit 1
+      ;;
+  esac
+}
+
+require_target() {
+  if [[ -z "$TARGET" ]]; then
+    error "缺少安装目标，请指定 claude 或 codex"
+    usage
+    exit 1
+  fi
+}
+
+ensure_skills_dir() {
+  if [[ -d "$SKILLS_DIR" ]]; then
+    return 0
+  fi
+
+  warn "${TARGET_NAME} skills 目录不存在，将创建：${SKILLS_DIR}/"
+  mkdir -p "$SKILLS_DIR"
+  ok "已创建 ${SKILLS_DIR}/"
+}
+
+target_for() {
+  local rel="$1"
+  echo "${SCRIPT_DIR}/${rel}"
+}
+
+old_relative_target_for() {
+  local rel="$1"
+  echo "${REPO_NAME}/${rel}"
+}
 
 # --- 安装 ---
 do_install() {
-  info "安装 skill 链接到 ${SKILLS_DIR}/"
+  ensure_skills_dir
+  info "安装 skill 链接到 ${TARGET_NAME}：${SKILLS_DIR}/"
   local installed=0 skipped=0
 
   for skill in "${SKILLS[@]}"; do
     local rel target link
     rel="$(skill_path_for "$skill")"
-    target="${REPO_NAME}/${rel}"
+    target="$(target_for "$rel")"
     link="${SKILLS_DIR}/${skill}"
 
     if [[ -L "$link" ]]; then
@@ -107,19 +161,21 @@ do_install() {
 
 # --- 卸载 ---
 do_uninstall() {
-  info "卸载 skill 链接"
+  info "卸载 ${TARGET_NAME} skill 链接：${SKILLS_DIR}/"
   local removed=0 skipped=0
 
   for skill in "${SKILLS[@]}"; do
-    local rel target link
+    local rel target old_target old_flat_target link
     rel="$(skill_path_for "$skill")"
-    target="${REPO_NAME}/${rel}"
+    target="$(target_for "$rel")"
+    old_target="$(old_relative_target_for "$rel")"
+    old_flat_target="${REPO_NAME}/${skill}"
     link="${SKILLS_DIR}/${skill}"
 
     if [[ -L "$link" ]]; then
       local current
       current="$(readlink "$link")"
-      if [[ "$current" == "$target" ]]; then
+      if [[ "$current" == "$target" || "$current" == "$old_target" || "$current" == "$old_flat_target" ]]; then
         rm "$link"
         ok "${skill} 已卸载"
         ((removed++)) || true
@@ -142,13 +198,16 @@ do_uninstall() {
 
 # --- 更新 ---
 do_update() {
-  info "更新 skill 链接"
+  ensure_skills_dir
+  info "更新 ${TARGET_NAME} skill 链接：${SKILLS_DIR}/"
   local updated=0
 
   for skill in "${SKILLS[@]}"; do
-    local rel target link
+    local rel target old_target old_flat_target link
     rel="$(skill_path_for "$skill")"
-    target="${REPO_NAME}/${rel}"
+    target="$(target_for "$rel")"
+    old_target="$(old_relative_target_for "$rel")"
+    old_flat_target="${REPO_NAME}/${skill}"
     link="${SKILLS_DIR}/${skill}"
 
     # 删除旧链接（仅删除属于本项目的，除非 -f 强制）
@@ -156,7 +215,7 @@ do_update() {
       local current
       current="$(readlink "$link")"
       # 兼容历史一级路径与新的多级路径
-      if [[ "$current" != "$target" && "$current" != "${REPO_NAME}/${skill}" ]]; then
+      if [[ "$current" != "$target" && "$current" != "$old_target" && "$current" != "$old_flat_target" ]]; then
         if (( FORCE )); then
           warn "${skill} 原指向 ${current}，已被 force 覆盖"
         else
@@ -181,13 +240,15 @@ do_update() {
 
 # --- 状态 ---
 do_status() {
-  info "Skill 链接状态："
+  info "${TARGET_NAME} Skill 链接状态：${SKILLS_DIR}/"
   echo ""
 
   for skill in "${SKILLS[@]}"; do
-    local rel target link
+    local rel target old_target old_flat_target link
     rel="$(skill_path_for "$skill")"
-    target="${REPO_NAME}/${rel}"
+    target="$(target_for "$rel")"
+    old_target="$(old_relative_target_for "$rel")"
+    old_flat_target="${REPO_NAME}/${skill}"
     link="${SKILLS_DIR}/${skill}"
 
     if [[ -L "$link" ]]; then
@@ -195,6 +256,8 @@ do_status() {
       current="$(readlink "$link")"
       if [[ "$current" == "$target" ]]; then
         ok "${skill} -> ${current}"
+      elif [[ "$current" == "$old_target" || "$current" == "$old_flat_target" ]]; then
+        warn "${skill} -> ${current} (本项目旧格式，可执行 update)"
       else
         warn "${skill} -> ${current} (非本项目或路径过期，可执行 update)"
       fi
@@ -209,18 +272,29 @@ do_status() {
 # --- 帮助 ---
 usage() {
   cat <<HELP
-${CYAN}Claude Code Skills 管理脚本${NC}
+Claude Code / Codex Skills 管理脚本
 
-用法: $(basename "$0") <命令> [选项]
+用法: $(basename "$0") <命令> <claude|codex> [选项]
+      $(basename "$0") <命令> --target <claude|codex> [选项]
 
 命令:
-  install     安装 skill（创建符号链接到 ~/.claude/skills/）
+  install     安装 skill（创建符号链接）
   uninstall   卸载 skill（删除符号链接）
   update      更新 skill（重建符号链接）
   status      查看当前安装状态
 
+目标:
+  claude      安装到 ${CLAUDE_SKILLS_DIR}/
+  codex       安装到 ${CODEX_SKILLS_DIR}/
+
 选项:
+  -t, --target <target>  指定安装目标：claude 或 codex
   -f, force, --force  对 install / update：覆盖指向其它项目的同名 symlink
+
+示例:
+  $(basename "$0") install claude
+  $(basename "$0") install codex
+  $(basename "$0") update --target codex --force
 
 Skill 列表:
 $(printf '  - %s\n' "${SKILLS[@]}")
@@ -233,15 +307,27 @@ shift || true
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -f|force|--force) FORCE=1 ;;
+    -t|--target)
+      shift
+      if [[ $# -eq 0 ]]; then
+        error "--target 需要参数：claude 或 codex"
+        usage
+        exit 1
+      fi
+      set_target "$1"
+      ;;
+    claude|claude-code|codex)
+      set_target "$1"
+      ;;
     *) error "未知参数：$1"; usage; exit 1 ;;
   esac
   shift
 done
 
 case "$CMD" in
-  install)   do_install   ;;
-  uninstall) do_uninstall ;;
-  update)    do_update    ;;
-  status)    do_status    ;;
+  install)   require_target; do_install   ;;
+  uninstall) require_target; do_uninstall ;;
+  update)    require_target; do_update    ;;
+  status)    require_target; do_status    ;;
   *)         usage        ;;
 esac
