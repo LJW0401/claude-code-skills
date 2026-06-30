@@ -114,6 +114,48 @@
   <li>{{待办 / 跟进：今天悬空、明天要处理的点}}</li>
 </ul>
 
+<!-- ===== Token 消耗：来自 digest.stats/project.token_usage，不重新扫描原始 jsonl ===== -->
+<h2 style="font-size:19px;color:#3370ff;margin-top:28px;">Token 消耗</h2>
+<table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:8px;">
+  <tr>
+    <th align="left" style="padding:6px;border-bottom:1px solid #dee0e3;color:#646a73;">来源</th>
+    <th align="right" style="padding:6px;border-bottom:1px solid #dee0e3;color:#646a73;">Total</th>
+    <th align="right" style="padding:6px;border-bottom:1px solid #dee0e3;color:#646a73;">Input</th>
+    <th align="right" style="padding:6px;border-bottom:1px solid #dee0e3;color:#646a73;">Output</th>
+    <th align="right" style="padding:6px;border-bottom:1px solid #dee0e3;color:#646a73;">Cache</th>
+    <th align="right" style="padding:6px;border-bottom:1px solid #dee0e3;color:#646a73;">Reasoning</th>
+    <th align="right" style="padding:6px;border-bottom:1px solid #dee0e3;color:#646a73;">Events</th>
+  </tr>
+  <tr>
+    <td style="padding:6px;border-bottom:1px solid #f2f3f5;"><strong>总量</strong></td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{total_tokens_display}}</td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{input_tokens_display}}</td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{output_tokens_display}}</td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{cache_tokens_display}}</td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{reasoning_tokens_display}}</td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{token_events_display}}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px;border-bottom:1px solid #f2f3f5;"><strong>Codex</strong></td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{codex_total_tokens_display}}</td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{codex_input_tokens_display}}</td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{codex_output_tokens_display}}</td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{codex_cache_tokens_display}}</td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{codex_reasoning_tokens_display}}</td>
+    <td align="right" style="padding:6px;border-bottom:1px solid #f2f3f5;">{{codex_token_events_display}}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px;"><strong>Claude Code</strong></td>
+    <td align="right" style="padding:6px;">{{claude_total_tokens_display}}</td>
+    <td align="right" style="padding:6px;">{{claude_input_tokens_display}}</td>
+    <td align="right" style="padding:6px;">{{claude_output_tokens_display}}</td>
+    <td align="right" style="padding:6px;">{{claude_cache_tokens_display}}</td>
+    <td align="right" style="padding:6px;">{{claude_reasoning_tokens_display}}</td>
+    <td align="right" style="padding:6px;">{{claude_token_events_display}}</td>
+  </tr>
+</table>
+<p style="font-size:13px;color:#646a73;margin-top:8px;">项目分布：{{token_top_projects}}</p>
+
 <hr style="border:none;border-top:1px solid #dee0e3;margin:32px 0;">
 
 <!-- ===== 副轴：各项目推进，引用原话、贴 commit/决策，信息密度优先 ===== -->

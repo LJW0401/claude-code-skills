@@ -4,7 +4,8 @@
 #         (~/.codex/state_5.sqlite 索引 → rollout-*.jsonl)的当天会话，按本地
 #         时区 09:00–21:00 复盘窗口逐条过滤用户消息 / 助手回复 / 工具与命令信号。
 #   归类：按 cwd 把 Claude Code 与 Codex 会话合并成项目分组，算出时段跨度、
-#         用户轮数、体量权重(主力/辅助)，挂上 commit/报错/打断等信号。
+#         用户轮数、体量权重(主力/辅助)，挂上 commit/报错/打断等信号，并汇总
+#         当天窗口内的模型 token 消耗。
 #   产出：一份紧凑 JSON digest 打到 stdout，供 Claude 据此提炼主题、撰写摘要 /
 #         时间线 / 摘要 / 明日计划 / 各项目推进。撰写判断不在本脚本职责内。
 # 设计：fail-first —— 缺数据源(目录/库不存在)= 该源 0 个会话，显式置 0；其余
@@ -28,6 +29,15 @@ PRIMARY_SIZE = 300_000  # 项目体量权重阈值：原始字节
 PRIMARY_ROUNDS = 8      # 项目体量权重阈值：用户轮数
 AUX_SIZE = 50_000       # 低于此体量且轮数少 → 辅助
 SKILL_MARK = "Base directory for this skill:"
+TOKEN_KEYS = (
+    "input_tokens",
+    "cached_input_tokens",
+    "cache_creation_input_tokens",
+    "cache_read_input_tokens",
+    "output_tokens",
+    "reasoning_output_tokens",
+    "total_tokens",
+)
 
 
 # ----- 通用工具 ----------------------------------------------------------
@@ -79,6 +89,113 @@ def detect_signals(text):
     return sigs, True
 
 
+def empty_token_usage():
+    """统一的 token 用量结构；各源缺失的字段保持 0。"""
+    return {k: 0 for k in TOKEN_KEYS} | {"events": 0}
+
+
+def add_token_usage(dst, src):
+    """把 src 的 token 字段累加到 dst。src 可以来自 Claude 或 Codex 原始 usage。"""
+    if not isinstance(src, dict):
+        return
+    saw_nonzero_token = False
+    for key in TOKEN_KEYS:
+        value = src.get(key)
+        if isinstance(value, (int, float)):
+            ivalue = int(value)
+            dst[key] += ivalue
+            saw_nonzero_token = saw_nonzero_token or ivalue != 0
+    if "events" in src:
+        dst["events"] += int(src.get("events") or 0)
+    elif saw_nonzero_token:
+        dst["events"] += 1
+
+
+def compact_count(value):
+    """把大数字转成邮件里更易读的 K/M/B，原始整数仍保留在 digest。"""
+    n = int(value or 0)
+    absn = abs(n)
+    for scale, suffix in (
+        (1_000_000_000, "B"),
+        (1_000_000, "M"),
+        (1_000, "K"),
+    ):
+        if absn >= scale:
+            scaled = n / scale
+            digits = 1 if abs(scaled) < 100 else 0
+            text = f"{scaled:.{digits}f}"
+            if "." in text:
+                text = text.rstrip("0").rstrip(".")
+            return text + suffix
+    return str(n)
+
+
+def finalize_token_usage(usage):
+    """补齐 total_tokens，并返回普通 dict，避免调用方误改共享对象。"""
+    result = dict(usage)
+    if result["total_tokens"] == 0:
+        result["total_tokens"] = (
+            result["input_tokens"]
+            + result["cache_creation_input_tokens"]
+            + result["cache_read_input_tokens"]
+            + result["output_tokens"]
+        )
+    cache_tokens = (
+        result["cached_input_tokens"]
+        + result["cache_creation_input_tokens"]
+        + result["cache_read_input_tokens"]
+    )
+    result["display"] = {
+        "input_tokens": compact_count(result["input_tokens"]),
+        "cached_input_tokens": compact_count(result["cached_input_tokens"]),
+        "cache_creation_input_tokens": compact_count(result["cache_creation_input_tokens"]),
+        "cache_read_input_tokens": compact_count(result["cache_read_input_tokens"]),
+        "output_tokens": compact_count(result["output_tokens"]),
+        "reasoning_output_tokens": compact_count(result["reasoning_output_tokens"]),
+        "total_tokens": compact_count(result["total_tokens"]),
+        "cache_tokens": compact_count(cache_tokens),
+        "events": compact_count(result["events"]),
+    }
+    return result
+
+
+def claude_usage(raw):
+    """把 Claude Code message.usage 规整为统一 token 字段。"""
+    if not isinstance(raw, dict):
+        return {}
+    out = {
+        "input_tokens": raw.get("input_tokens", 0) or 0,
+        "output_tokens": raw.get("output_tokens", 0) or 0,
+        "cache_creation_input_tokens": raw.get("cache_creation_input_tokens", 0) or 0,
+        "cache_read_input_tokens": raw.get("cache_read_input_tokens", 0) or 0,
+    }
+    nested_creation = raw.get("cache_creation")
+    if out["cache_creation_input_tokens"] == 0 and isinstance(nested_creation, dict):
+        out["cache_creation_input_tokens"] = sum(
+            int(v) for v in nested_creation.values() if isinstance(v, (int, float))
+        )
+    out["total_tokens"] = (
+        out["input_tokens"]
+        + out["cache_creation_input_tokens"]
+        + out["cache_read_input_tokens"]
+        + out["output_tokens"]
+    )
+    return out
+
+
+def codex_usage(raw):
+    """把 Codex token_count.last_token_usage 规整为统一 token 字段。"""
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        "input_tokens": raw.get("input_tokens", 0) or 0,
+        "cached_input_tokens": raw.get("cached_input_tokens", 0) or 0,
+        "output_tokens": raw.get("output_tokens", 0) or 0,
+        "reasoning_output_tokens": raw.get("reasoning_output_tokens", 0) or 0,
+        "total_tokens": raw.get("total_tokens", 0) or 0,
+    }
+
+
 # ----- Claude Code 采集 --------------------------------------------------
 
 def collect_claude(win_start, win_end):
@@ -106,16 +223,22 @@ def collect_claude(win_start, win_end):
 def _read_claude_file(path, win_start, win_end, size):
     cwd = branch = None
     msgs, signals = [], []
+    token_usage = empty_token_usage()
     with open(path, encoding="utf-8") as fp:
         for line in fp:
             try:
                 o = json.loads(line)
             except ValueError:
                 continue
-            if o.get("type") != "user":
-                continue
             dt = parse_ts(o.get("timestamp"))
             if dt is None or not (win_start <= dt < win_end):
+                continue
+            if o.get("type") == "assistant":
+                usage = o.get("message", {}).get("usage")
+                if usage:
+                    add_token_usage(token_usage, claude_usage(usage))
+                continue
+            if o.get("type") != "user":
                 continue
             cwd = cwd or o.get("cwd")
             branch = branch or o.get("gitBranch")
@@ -134,7 +257,8 @@ def _read_claude_file(path, win_start, win_end, size):
                 msgs.append({"t": hm(dt), "text": cap(content)})
     if not msgs and not signals:
         return None
-    return _finish_session("claude-code", path, cwd, branch, msgs, signals, size)
+    return _finish_session("claude-code", path, cwd, branch, msgs, signals, size,
+                           token_usage)
 
 
 # ----- Codex 采集 --------------------------------------------------------
@@ -172,6 +296,7 @@ def _read_codex_file(path, win_start, win_end, cwd, branch, title):
     msgs, signals = [], []
     agent_first = agent_last = None
     calls = commands = failed = 0
+    token_usage = empty_token_usage()
     with open(path, encoding="utf-8") as fp:
         for line in fp:
             try:
@@ -198,6 +323,9 @@ def _read_codex_file(path, win_start, win_end, cwd, branch, title):
                     if agent_first is None:
                         agent_first = cap(m)
                     agent_last = cap(m)
+            elif typ == "event_msg" and pt == "token_count":
+                info = p.get("info") or {}
+                add_token_usage(token_usage, codex_usage(info.get("last_token_usage")))
             elif typ == "response_item" and pt == "function_call":
                 calls += 1
             elif typ == "event_msg" and pt == "exec_command_end":
@@ -213,7 +341,7 @@ def _read_codex_file(path, win_start, win_end, cwd, branch, title):
     if not msgs and not signals and agent_last is None:
         return None
     sess = _finish_session("codex", path, cwd, branch, msgs, signals,
-                           os.stat(path).st_size)
+                           os.stat(path).st_size, token_usage)
     sess["title"] = title
     sess["agent_first"] = agent_first
     sess["agent_last"] = agent_last
@@ -223,7 +351,7 @@ def _read_codex_file(path, win_start, win_end, cwd, branch, title):
 
 # ----- 组装 session / 项目归类 -------------------------------------------
 
-def _finish_session(source, path, cwd, branch, msgs, signals, size):
+def _finish_session(source, path, cwd, branch, msgs, signals, size, token_usage=None):
     times = [m["t"] for m in msgs]
     span = None
     if times:
@@ -240,6 +368,7 @@ def _finish_session(source, path, cwd, branch, msgs, signals, size):
         "span": span,
         "user_msgs": msgs,
         "signals": signals,
+        "token_usage": finalize_token_usage(token_usage or empty_token_usage()),
     }
 
 
@@ -259,6 +388,9 @@ def group_by_cwd(sessions):
     for cwd, sess in groups.items():
         rounds = sum(s["rounds"] for s in sess)
         size = sum(s["size_kb"] for s in sess) * 1024
+        token_usage = empty_token_usage()
+        for s in sess:
+            add_token_usage(token_usage, s.get("token_usage"))
         starts = [s["span"]["start"] for s in sess if s["span"]]
         ends = [s["span"]["end"] for s in sess if s["span"]]
         span = None
@@ -277,6 +409,7 @@ def group_by_cwd(sessions):
             "weight": weight,
             "rounds": rounds,
             "span": span,
+            "token_usage": finalize_token_usage(token_usage),
             "sessions": sess,
         })
     # 主力在前，再按轮数降序
@@ -289,6 +422,15 @@ def build_digest(target_date, win_start, win_end):
     cc = collect_claude(win_start, win_end)
     cx = collect_codex(win_start, win_end)
     projects = group_by_cwd(cc + cx)
+    token_usage = empty_token_usage()
+    claude_token_usage = empty_token_usage()
+    codex_token_usage = empty_token_usage()
+    for s in cc:
+        add_token_usage(token_usage, s.get("token_usage"))
+        add_token_usage(claude_token_usage, s.get("token_usage"))
+    for s in cx:
+        add_token_usage(token_usage, s.get("token_usage"))
+        add_token_usage(codex_token_usage, s.get("token_usage"))
     return {
         "date": target_date.isoformat(),
         "window": {"start": hm(win_start), "end": hm(win_end)},
@@ -296,6 +438,9 @@ def build_digest(target_date, win_start, win_end):
             "claude_code_sessions": len(cc),
             "codex_rollouts": len(cx),
             "projects": len(projects),
+            "token_usage": finalize_token_usage(token_usage),
+            "claude_code_token_usage": finalize_token_usage(claude_token_usage),
+            "codex_token_usage": finalize_token_usage(codex_token_usage),
         },
         "projects": projects,
     }
