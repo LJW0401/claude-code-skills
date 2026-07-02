@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-# 资源目录（本脚本所在处，含 daily-summary.sh / .service / .timer / .conf）
+# 资源目录（本脚本所在处，含 daily-summary.sh / collect.py / .service / .timer / .conf）
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BIN_DIR="$HOME/ClaudeCode/tools/daily-summary"
@@ -27,6 +27,7 @@ cmd_install() {
   echo "[install] 部署脚本与 unit..."
   mkdir -p "$BIN_DIR" "$STATE_DIR" "$UNIT_DIR"
   install -m 755 "$SRC/daily-summary.sh"      "$BIN_DIR/daily-summary.sh"
+  install -m 755 "$SRC/collect.py"            "$BIN_DIR/collect.py"
   install -m 644 "$SRC/daily-summary.service" "$UNIT_DIR/daily-summary.service"
   install -m 644 "$SRC/daily-summary.timer"   "$UNIT_DIR/daily-summary.timer"
   if [ ! -f "$CONFIG" ]; then
@@ -67,6 +68,7 @@ cmd_run() {
 cmd_restart() {
   echo "[restart] 重新部署脚本、unit 与配置，并重启定时器（用于改动后生效）..."
   install -m 755 "$SRC/daily-summary.sh"      "$BIN_DIR/daily-summary.sh"
+  install -m 755 "$SRC/collect.py"            "$BIN_DIR/collect.py"
   install -m 644 "$SRC/daily-summary.service" "$UNIT_DIR/daily-summary.service"
   install -m 644 "$SRC/daily-summary.timer"   "$UNIT_DIR/daily-summary.timer"
   install -m 644 "$SRC/daily-summary.conf" "$CONFIG"
@@ -86,7 +88,7 @@ cmd_uninstall() {
   echo "[uninstall] 停用定时器并移除 unit..."
   systemctl --user disable --now "$UNIT" 2>/dev/null || true
   rm -f "$UNIT_DIR/daily-summary.timer" "$UNIT_DIR/daily-summary.service"
-  rm -f "$BIN_DIR/daily-summary.sh"
+  rm -f "$BIN_DIR/daily-summary.sh" "$BIN_DIR/collect.py"
   systemctl --user daemon-reload
   echo "[uninstall] 完成（配置、日志与历史 HTML 保留在 $BIN_DIR 和 $STATE_DIR）。"
 }
